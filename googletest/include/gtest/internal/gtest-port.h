@@ -1209,29 +1209,21 @@ class GTEST_API_ AutoHandle {
 // TODO(b/203539622): Replace unconditionally with absl::Notification.
 class GTEST_API_ Notification {
  public:
-  Notification() : notified_(false) {}
+  Notification();
   Notification(const Notification&) = delete;
   Notification& operator=(const Notification&) = delete;
 
   // Notifies all threads created with this notification to start. Must
   // be called from the controller thread.
-  void Notify() {
-    std::lock_guard<std::mutex> lock(mu_);
-    notified_ = true;
-    cv_.notify_all();
-  }
+  void Notify();
 
   // Blocks until the controller thread notifies. Must be called from a test
   // thread.
-  void WaitForNotification() {
-    std::unique_lock<std::mutex> lock(mu_);
-    cv_.wait(lock, [this]() { return notified_; });
-  }
+  void WaitForNotification();
 
  private:
-  std::mutex mu_;
-  std::condition_variable cv_;
-  bool notified_;
+  struct Impl;
+  std::unique_ptr<Impl, void (*)(Impl*)> impl_;
 };
 #endif  // GTEST_HAS_NOTIFICATION_
 

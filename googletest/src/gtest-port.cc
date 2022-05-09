@@ -305,6 +305,43 @@ bool AutoHandle::IsCloseable() const {
   return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE;
 }
 
+#if GTEST_HAS_NOTIFICATION_
+// Notification has already been imported into the namespace.
+// Nothing to do here.
+
+#else
+struct Notification::Impl {
+ public:
+  Impl() : notified_(false) {}
+  Impl(const Notification&) = delete;
+  Impl& operator=(const Impl&) = delete;
+
+  // Notifies all threads created with this notification to start. Must
+  // be called from the controller thread.
+  void Notify() {
+    std::lock_guard<std::mutex> lock(mu_);
+    notified_ = true;
+    cv_.notify_all();
+  }
+
+  // Blocks until the controller thread notifies. Must be called from a test
+  // thread.
+  void WaitForNotification() {
+    std::unique_lock<std::mutex> lock(mu_);
+    cv_.wait(lock, [this]() { return notified_; });
+  }
+
+ private:
+  std::mutex mu_;
+  std::condition_variable cv_;
+  bool notified_;
+};
+
+Notification::Notification() : impl_(new Impl, [](Impl* x) { delete x; }) {}
+void Notification::Notify() { impl_->Notify(); }
+void Notification::WaitForNotification() { impl_->WaitForNotification(); }
+#endif  // GTEST_HAS_NOTIFICATION_
+
 Mutex::Mutex()
     : owner_thread_id_(0),
       type_(kDynamic),
